@@ -1,0 +1,9 @@
+# Build outputs and local scratch
+node_modules/
+_scratch/
+*.log
+.vs/
+__pycache__/
+
+# Generated test output is kept on purpose (evidence), everything else ignored
+!tests/test-output.txt

@@ -1,0 +1,28 @@
+{
+  "name": "@local/dsh-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic pre-execution guard for destructive shell commands in DeepSeek Harness.",
+  "exports": {
+    ".": "./index.js",
+    "./rules": "./rules.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "rules.js",
+    "cordis.patch.yml",
+    "README.md",
+    "test"
+  ],
+  "scripts": {
+    "test": "node --test --test-isolation=none test/rules.test.mjs test/contract.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,89 @@
+﻿SafeDelete PowerShell module - test run
+=========================================
+Started        : 2026-11-16 22:35:43 +08:00
+PowerShell     : 5.1.26100.8457 (Desktop)
+Host           : ConsoleHost
+Runner         : plain PowerShell 5.1 shim (Pester 5 not installed)
+Module         : .\SafeDelete\SafeDelete.psd1 (version 0.1.0)
+Test file      : .\tests\SafeDelete.Tests.ps1
+Test data root : %TEMP% (fixtures are created there and removed afterwards)
+
+PASS  SafeDelete module contract > imports the module manifest
+PASS  SafeDelete module contract > exports all documented functions
+PASS  SafeDelete module contract > has a valid module manifest
+PASS  SafeDelete module contract > reports the built-in protected locations
+PASS  SafeDelete module contract > exposes only the intended public functions
+PASS  Assert-SafePath / Test-SafePath - canonicalization > returns the canonical absolute path for a normal folder
+PASS  Assert-SafePath / Test-SafePath - canonicalization > trims trailing separators and resolves dot segments
+PASS  Assert-SafePath / Test-SafePath - canonicalization > accepts a normal %TEMP% folder and reports reason Ok
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects drive root C:\
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects drive root without backslash C:
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects any other drive root
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects an empty path
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects a whitespace-only path
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects the user profile
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects the user profile with a trailing slash
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects the users root
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects .dsh directories at any depth
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects Windows and Windows subdirectories
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects Program Files and ProgramData
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects the module own directory
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects paths below the caller script directory
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects an invalid script root
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects relative paths by default
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects drive relative paths
+PASS  Assert-SafePath / Test-SafePath - canonicalization > resolves a relative path when AllowRelative is explicit
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects wildcards
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects device paths
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects alternate data streams
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects a UNC share root
+PASS  Assert-SafePath / Test-SafePath - canonicalization > supports strict AllowedRoot allowlist mode
+PASS  Assert-SafePath / Test-SafePath - canonicalization > rejects an invalid AllowedRoot
+PASS  Assert-SafePath / Test-SafePath - canonicalization > supports DenyPath
+PASS  Assert-SafePath / Test-SafePath - canonicalization > supports Register-SafeDeleteDeniedPath and -Remove
+PASS  Assert-SafePath / Test-SafePath - canonicalization > supports ExpectedLeafName with exact and wildcard patterns
+PASS  Assert-SafePath / Test-SafePath - canonicalization > compares paths case insensitively
+PASS  Assert-SafePath / Test-SafePath - canonicalization > treats every path below the user profile as usable (except protected names)
+PASS  Remove-SafeItem > supports -WhatIf semantics
+PASS  Remove-SafeItem > deletes a normal folder tree inside %TEMP%
+PASS  Remove-SafeItem > deletes a single file
+PASS  Remove-SafeItem > does not delete anything with -WhatIf
+PASS  Remove-SafeItem > supports -KeepRoot to empty a folder but keep it
+PASS  Remove-SafeItem > removes a junction as a link only and keeps the target
+PASS  Remove-SafeItem > never traverses junctions inside a deleted tree
+PASS  Remove-SafeItem > deletes hidden and read-only files inside a tree
+PASS  Remove-SafeItem > refuses the drive root
+PASS  Remove-SafeItem > refuses the user profile
+PASS  Remove-SafeItem > refuses paths outside the allowlist without deleting them
+PASS  Remove-SafeItem > throws for a missing target instead of silently succeeding
+PASS  Remove-SafeItem > returns a PassThru summary
+PASS  Remove-SafeItem > handles paths longer than MAX_PATH
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > accepts a valid mirror target with a marker file
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > rejects the drive root as destination
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > rejects the user profile as destination
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > rejects a destination without marker file
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > accepts an unmarked destination when -AllowUnmarked is explicit
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > requires -AllowCreate for a missing destination
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > rejects source equal to destination
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > rejects a destination inside the source
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > rejects a missing source
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > refuses to run robocopy against a protected destination
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > does not run robocopy with -WhatIf
+PASS  Test-SafeMirrorTarget / Invoke-SafeRobocopy > does not create a missing destination with -WhatIf
+PASS  Test-DangerousCommandLine > detects the incident command rd /s /q "C:\"
+PASS  Test-DangerousCommandLine > marks rd /s /q without a target as dangerous and unknown
+PASS  Test-DangerousCommandLine > detects Remove-Item -Recurse against the user profile
+PASS  Test-DangerousCommandLine > detects robocopy /MIR
+PASS  Test-DangerousCommandLine > detects del /f /s /q with a wildcard target
+PASS  Test-DangerousCommandLine > detects rm -rf
+PASS  Test-DangerousCommandLine > detects Format-Volume
+PASS  Test-DangerousCommandLine > detects vssadmin delete shadows
+PASS  Test-DangerousCommandLine > does not flag a plain read only command
+PASS  Test-DangerousCommandLine > does not flag Remove-Item without -Recurse
+PASS  Test-DangerousCommandLine > does not flag robocopy without /MIR
+PASS  Test-DangerousCommandLine > reports a safe concrete target as TargetSafe
+PASS  Test-DangerousCommandLine > accepts pipeline input and returns one object per command
+PASS  Test-DangerousCommandLine > returns target assessments for the drive root
+
+Summary: 76 passed, 0 failed, 0 skipped (total 76) in 1.65s
+Result : PASS

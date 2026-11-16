@@ -1,0 +1,22 @@
+# dsh-guard: a profile layer row. Inserted by the profile's bundle list; the
+# config below is the shipped default and can be overridden in the profile's
+# own cordis.patch.yml without editing this file.
+- insert:
+    - id: dsh-guard
+      name: '@local/dsh-guard'
+      config:
+        # ask    -> recursive/bulk deletions pause for user approval
+        # deny   -> recursive/bulk deletions are blocked outright
+        # audit  -> recursive/bulk deletions are allowed but written to the audit log
+        mode: ask
+        # protected targets: always blocked (set to ask to prompt instead)
+        protectAction: deny
+        # targets the guard cannot resolve (variables, wildcards, run_code bodies)
+        unresolvedAction: ask
+        # internal rule errors pause the call instead of letting it through
+        failClosed: true
+        # personal data roots that must never be bulk-deleted
+        protectedPaths:
+          - 'C:\work'
+        # scratch roots where recursive deletes stay silent (add your own)
+        allowedRoots: []
