@@ -7,15 +7,21 @@
 > 2. `Data-loss risk: an uncanonicalized path argument reached a destructive shell verb; please gate destructive tool calls`
 >
 > **建議標籤**：`safety`、`data-loss`、`tools`、`enhancement`
-> **提報者**：一位 DSH 桌面版使用者（2026-11-16 事故當事人；資料已完整救回）。
+> **提報者**：一位 DSH 桌面版使用者（2026-11-16 事故當事人）。
+>
+> **2026-11-18 修訂**：初稿寫「資料已完整救回」。**不成立。** 影子的檔案大小正確，但 78 個以上檔案內容是零、15 個全毀；這是 Windows 已知的 VSS 缺陷。時間線、根因、最小重現腳本與一條新的 P0 建議都已據此更新。
 
 ---
 
 ## English summary (issue opening)
 
-On 2026-11-16, a DSH desktop user had granted the agent full access for a plugin-migration task. While testing a PowerShell uninstall script that the agent had just written, the script's own destination guard failed to canonicalize a caller-supplied `-Dest "C:\"` value: `[IO.Path]::GetFullPath()` preserves the trailing separator, so the drive root did not match the user-profile check, and a `-Force` flag skipped the folder-name check. The script then ran `cmd /c rd /s /q "C:\"`. Over the next two to three minutes it deleted the user's working folder — 1,372 files in 143 directories, about 1.75 GB — and stopped only when the user killed the background job. Everything was recovered from a Windows VSS shadow copy taken roughly six hours earlier, and file counts and bytes were verified after restore. Most users would not have that safety net.
+On 2026-11-16, a DSH desktop user had granted the agent full access for a plugin-migration task. While testing a PowerShell uninstall script that the agent had just written, a caller-supplied `-Dest "C:\"` value passed the script's own destination guard: the guard's canonicalizer deliberately leaves a three-character drive root as `C:\`, while the drive-root check was written as `^[A-Za-z]:$`, which only matches the trimmed form `C:`. Two individually correct checks cancelled each other out. The script then ran `cmd /c rd /s /q "C:\"`. It deleted the user's working folder — 1,372 files in 143 directories, about 1.75 GB — within 127 seconds, and stopped when the agent killed the background job. Files were restored from a Windows VSS shadow copy taken roughly six hours earlier, **but that turned out to be size-and-count recovery only**: 78+ files came back with correct sizes and entirely zeroed content, because VSS itself silently returned NULL blocks (a known Windows defect). Most users have neither the safety net nor a way to detect that it lied.
 
-Every existing layer was bypassed for a different reason. Full access mode skipped approval entirely, which is what full access means — but the user's intent was "let the agent work without babysitting every file edit", not "irreversible mass deletion may proceed unannounced". The shell tool itself saw a benign-looking `pwsh -File uninstall.ps1 -Dest C:\ -Force` invocation, because the destructive verb lived inside the script the model had just authored, not in the tool's command line. The script's guard was written by the same model that also chose the real drive root as the test value, and the optional Auto review access mode — the one mechanism that checks each tool call against the user's request — was off by default.
+Every existing layer was bypassed for a different reason. Full access mode skipped approval entirely, which is what full access means — but the user's intent was "let the agent work without babysitting every file edit", not "irreversible mass deletion may proceed unannounced". The shell tool itself saw a benign-looking `pwsh -File uninstall.ps1 -Dest C:\ -Force` invocation, because the destructive verb lived inside the script the model had just authored, not in the tool's command line. The optional Auto review access mode — the one mechanism that checks each tool call against the user's request — was off by default.
+
+One fact makes this less a story about model judgment than about verification discipline. **125 seconds before the fatal command**, an independent review subagent the agent had spawned returned a P0 finding that named `-Dest C:\` as a bypass and said the uninstaller's `-Dest` had no validation at all. The agent received it and acted: 59 seconds later it rewrote both scripts and added the missing guard, specifically in response to that review. That part worked. Then it validated the new guard by running `-Dest "C:\" -Force` — the very object the review had named. The guard test and the protected target were the same thing, so validation became the accident.
+
+That is the cheapest thing to fix in this entire report: an explicit norm, in the tool description or system prompt, that a guard test must use a **decoy target** (`-Dest "C:\__probe_does_not_exist__"`) and never the real one. It costs nothing, it is checkable, and it would have prevented this incident even after the guard was written wrong.
 
 This issue does not ask DSH to block deletions, to take responsibility for user scripts, or to weaken the full-access escape hatch. It asks for a last line of defense around irreversible operations: (1) approval for destructive commands whose canonical targets are a disk root, a user directory, DSH's own data, or outside the workspace — including in full access mode; (2) a restore point or quarantine copy before the delete executes, with the UI saying so; (3) a first-party safe-delete tool; (4) deterministic path canonicalization plus a protected-path list built into the shell tools; (5) an audit log and one-click undo. A small PowerShell reference implementation with Pester tests exists from the follow-up work and can be contributed if useful. We would rather have this discussed than quietly patched: the failure class is generic to every shell-backed agent, not specific to this one session.
 
@@ -23,7 +29,9 @@ This issue does not ask DSH to block deletions, to take responsibility for user 
 
 ## 問題陳述（繁中）
 
-AI agent 在使用者授予 **full access** 的情況下，把一個**未正規化**的路徑參數餵給刪除動詞，實際執行 `cmd /c rd /s /q "C:\"`，刪掉使用者的工作資料夾（1,372 個檔案、143 個目錄、約 **1.75 GB**）。整個過程沒有任何人被詢問、沒有任何還原點被建立、沒有任何審計記錄留下。使用者靠 Windows VSS 影子複本（約 6 小時前的還原點）以 robocopy 完整救回，並核對檔案數與位元組一致。
+AI agent 在使用者授予 **full access** 的情況下，把一個**未正規化**的路徑參數餵給刪除動詞，實際執行 `cmd /c rd /s /q "C:\"`，刪掉使用者的工作資料夾（1,372 個檔案、143 個目錄、約 **1.75 GB**）。整個過程沒有任何人被詢問、沒有任何還原點被建立、沒有任何審計記錄留下。使用者靠 Windows VSS 影子複本（約 6 小時前的還原點）以 robocopy 取回，**但只救回檔案清單與大小——78 個以上檔案的內容是零，VSS 本身在不報錯的情況下回傳了 NULL 區塊**。
+
+還有一個初稿沒寫、但對 DSH 更關鍵的事實：**這道出事的防護，是為了回應一個 19:00:11 送達的審查警告才寫的**（距致命指令 2 分 5 秒）。agent 收到警告、59 秒內照著補上防護——然後拿警告點名的那個 `-Dest "C:\"` 去驗證它。所以問題不只是「模型會不會寫錯防護」，而是**沒有人要求「守門測試的輸入不能是被保護的目標本身」**。這一條寫進工具描述或系統提示就能生效，成本為零。
 
 問題不在「agent 會不會犯錯」——它一定會。問題在於：**一個不可逆、影響範圍可達整個磁碟的動作，在 full access 模式下沒有任何第二道關卡，也沒有任何復原路徑。** 這對任何 shell-backed agent 都是通用風險。
 
@@ -37,7 +45,9 @@ AI agent 在使用者授予 **full access** 的情況下，把一個**未正規�
 | Access mode | `danger-full-access`（使用者在該會話主動開啟） |
 | 出事的呼叫鏈 | shell 工具（`pwsh`）→ 子行程 `pwsh -File uninstall.ps1 -Dest "C:\" -Force` → `cmd /c rd /s /q "C:\"` |
 | 未生效的既有機制 | workspace sandbox（full access 下不約束子行程）、approval prompt（full access 略過）、Auto review 外掛（未啟用） |
-| 恢復方式 | Windows VSS 影子複本 + `robocopy /E /COPYALL`；143 目錄 / 1,372 檔案 / 1.744 GB / 0 FAILED |
+| 恢復方式 | Windows VSS 影子複本 + `robocopy /E /COPYALL`；143 目錄 / 1,372 檔案 / 1.744 GB / 0 FAILED。**但這只代表數量與大小**：事後逐檔掃描發現 78 個以上檔案內容為零、15 個全毀（VSS 已知缺陷，見 `vss-null-blocks.md`）。 |
+| 破壞視窗 | 指令 19:02:16 送出、19:04:23 中止，**上限 127 秒**；19:05:25 才目視確認損害 |
+| 事前警告 | 19:00:11 收到 subagent 審查的 P0 警告，點名 `-Dest C:\` 可繞過；59 秒後據此補上防護，再以同一個輸入驗證該防護 |
 
 ## 重現條件（最小）
 
@@ -55,6 +65,14 @@ AI agent 在使用者授予 **full access** 的情況下，把一個**未正規�
 ```powershell
 # CONCEPT ONLY — do not run this against real data.
 # Concept: reproduces the chain "unnormalized path argument -> delete verb".
+# This mirrors the real defect: two individually correct guards cancelling out.
+
+# (A) The canonicalizer deliberately does NOT trim a three-character drive root.
+function Get-Canonical([string]$p) {
+    $full = [IO.Path]::GetFullPath($p)                            # "C:\" stays "C:\"
+    if ($full.Length -gt 3) { $full = $full.TrimEnd('\', '/') }   # -gt 3 is intentional
+    return $full
+}
 
 function Remove-ByDest {
     param(
@@ -64,28 +82,33 @@ function Remove-ByDest {
 
     if ([string]::IsNullOrWhiteSpace($Dest)) { throw 'refusing: empty -Dest' }
 
-    # BUG 1: GetFullPath keeps the trailing separator, so "C:\" stays "C:\".
-    #        The comparison below can never match the user profile.
-    $full = [IO.Path]::GetFullPath($Dest)
-    if ($full -eq [IO.Path]::GetFullPath($env:USERPROFILE)) {
-        throw 'refusing: user profile'
-    }
+    $canon = Get-Canonical $Dest                                  # → "C:\"
 
-    # BUG 2: -Force skips the leaf-name check that would otherwise require
-    #        a known folder name (e.g. 'my-plugin').
-    if (-not $Force -and (Split-Path -Leaf $full) -ne 'my-plugin') {
+    # (B) The drive-root check only matches the TRIMMED form "C:".
+    if ($canon -match '^[A-Za-z]:$') { throw 'refusing: drive root' }   # "C:\" does not match
+
+    # (C) This one genuinely works — which is why the first version of this report
+    #     blamed the wrong check.
+    if ($canon -eq (Get-Canonical $env:USERPROFILE)) { throw 'refusing: user profile' }
+
+    # (D) -Force skips the leaf-name check.
+    if (-not $Force -and (Split-Path -Leaf $canon) -ne 'my-plugin') {
         throw 'refusing: unexpected folder name'
     }
 
-    # BUG 3: the destructive verb eats the caller-controlled path.
-    if (Test-Path -LiteralPath $full) {
-        cmd /c rd /s /q "$full"
+    # The destructive verb eats the caller-controlled path.
+    if (Test-Path -LiteralPath $canon) {
+        cmd /c rd /s /q "$canon"                                  # delete runs
     }
 }
 
 # Passes every guard above; the delete runs.
+# AND: this is also the *test invocation* — the guard test and the protected
+# object are the same thing, so a broken guard becomes an incident.
 Remove-ByDest -Dest 'C:\' -Force
 ```
+
+（A）與（B）單獨看都對：（A）的作者知道磁碟根是 3 個字元，所以刻意不把它修剪成 `C:`；（B）的正則要求的是修剪後的形式。兩者合起來，`C:\` 兩邊都過。（C）反而是有效的——初版把責任歸給它，是錯的。
 
 對照：**正確**的防護長什麼樣（同樣是概念版）：
 
@@ -112,7 +135,7 @@ if ($canonical -ieq $env:USERPROFILE.TrimEnd('\')) { throw 'refusing: user profi
 | Approval / 授權提示 | full access 模式的定義就是不逐次詢問；使用者授權的是「自動工作」，不是「可以無聲刪光」。 |
 | Workspace sandbox | 被刪除是子行程（`cmd /c rd`）的副作用；full access 下不限制子行程能做到什麼。 |
 | shell 工具的命令字串檢查（若有） | 工具只看到 `pwsh -File uninstall.ps1 -Dest C:\ -Force`，**刪除動詞在腳本檔案裡**，不在命令列上。純字串比對抓不到。 |
-| 腳本自己的路徑防護 | 防護是模型寫的，只想到「空字串、使用者目錄、資料夾名稱」，沒有 canonicalize、沒有磁碟根、`-Force` 還跳過檢查。 |
+| 腳本自己的路徑防護 | 防護是模型寫的，**而且有 canonicalize、也有磁碟根檢查**——但兩者的形式不一致（不修剪的 `C:\` 對上只認 `C:` 的正則）而互相抵銷。`-Force` 又跳過資料夾名稱檢查。 |
 | Agent 的判斷 | 模型選擇拿真實磁碟根當測試值，並在 full access 下執行；沒有任何機制要求它先凍結、先列清單、先問人。 |
 | Auto review（自動授權審查） | 現有外掛 `@deepseek-ai/dsh-experimental-auto-review` 能對照使用者要求審查每次工具呼叫，但**預設關閉**；事故會話中並未啟用。 |
 | 刪除前 checkpoint | 不存在。唯一救命的 VSS 還原點是「剛好有開系統保護」的運氣，不是產品設計。 |
@@ -122,7 +145,7 @@ if ($canonical -ieq $env:USERPROFILE.TrimEnd('\')) { throw 'refusing: user profi
 
 - **直接損失**：工作資料夾整棵樹 1,372 檔案 / 143 目錄 / 1.744 GB。這只是「被刪掉的部分」；若沒有 VSS，就是全部。
 - **不可逆**：一般使用者的 Windows 安裝不一定開系統還原；工作目錄很少即時備份到外接碟；macOS／Linux 的對應機制（APFS 快照、btrfs subvolume）同樣不是預設保證。對多數人而言，這類事故＝永久資料損失。
-- **不可預測**：`rd /s /q` 對磁碟根實際刪到哪裡，取決於 ACL、服務帳號與時序。本案例刪了約 2–3 分鐘後才被中止，系統目錄「剛好」沒被刪——這是巧合，不是安全設計。
+- **不可預測**：`rd /s /q` 對磁碟根實際刪到哪裡，取決於 ACL、服務帳號、目錄列舉順序與時間。本案例在 **127 秒**內刪掉字母序上幾乎最前的工作資料夾就被中止；其餘系統目錄「剛好」沒被刪，**不是被保護，是還沒輪到**。這是巧合，不是安全設計。
 - **沒有即時感**：命令輸出不會列出被刪的檔案；使用者通常幾分鐘後才發現。
 - **嚴重度：Critical（資料全毀、不可逆、影響所有 shell-backed agent 使用者）；發生頻率低，但後果不可接受。**
 
@@ -159,7 +182,10 @@ if ($canonical -ieq $env:USERPROFILE.TrimEnd('\')) { throw 'refusing: user profi
 - 一次批准不等於永久授權；同一會話重複同一 destructive 指令應重新提示，或要求明確的 session 授權。
 - 對 `-EncodedCommand` 這類無法審閱的內容，視為 opaque → 一律批准，或直接拒絕。
 - 建議同時提供使用者層級的設定（例如 `safety.destructive: off | protected-and-outside | always`），但**預設值應為「保護路徑 + workspace 外」**；「off」必須是明確、需輸入確認的 opt-in。
-- 低成本配套：把「不得用真實資料路徑測試刪除腳本、先 dry-run、不確定就停下來問人」寫進 agent 行為指引／`AGENTS.md` 範本。
+- 低成本配套：把三句話寫進 agent 行為指引／系統提示／`AGENTS.md` 範本：
+  1. 不得用真實資料路徑測試刪除腳本；
+  2. **守門測試的輸入必須是替身**（例如 `-Dest "C:\__probe_does_not_exist__"`），不得拿被保護的目標本身當驗證輸入——本案例就是拿真磁碟根測守門，守門一有洞就直接執行；
+  3. 不確定就停下來問人，先 dry-run。
 
 ### P1 — 刪除前自動建立 checkpoint／快照（並在 UI 顯示「已建立還原點」）
 
@@ -217,6 +243,8 @@ DSH 已經有一個直接對應這個問題的機制，但目前是 optional、�
 - [ ] 在 `danger-full-access` 下，shell 呼叫 `cmd /c rd /s /q "C:\"` 不會未經批准執行；批准卡片顯示 canonical 目標 `C:\` 與原因 `drive root`。
 - [ ] 同上，下列每一個都觸發批准或拒絕：`Remove-Item -Recurse -Force $env:USERPROFILE`、`robocopy C:\ D:\ /MIR`、`rm -rf /`、`Format-Volume -DriveLetter D`、`diskpart` 內含 `clean`。
 - [ ] 執行一個**內容含** destructive 指令的腳本（`pwsh -File uninstall.ps1 -Dest "C:\"`）會觸發同一道關卡；批准卡片註明「被呼叫的腳本內含破壞性指令」。
+- [ ] **守門測試準則**：agent 被要求「驗證磁碟根會被擋」時，預設使用替身目標（不存在路徑），不會對真實磁碟根執行該腳本；此行為可從 session 記錄檢出。（本案例做到的是：收到 P0 警告後 59 秒內補上防護，然後用警告點名的輸入驗證它。）
+- [ ] **驗收驗內容、不驗數量**：還原或修復後的檢查包含零段掃描（整頁 4096 位元組全零）與 Office／zip `testzip()`；因為檔案大小在內容被清空時完全不會變，本案例就是這樣被誤判為「完整救回」。
 - [ ] 路徑正規化測試全數通過：`C:\`、`C:`、`C:/`、`c:\`、`C:\..\`、`\\?\C:\`、`\\server\share`、`%USERPROFILE%`、`~\`、指向磁碟根的 junction／symlink、workspace root 的遞迴刪除。
 - [ ] 對 workspace 內資料夾的破壞性操作，在執行前建立 quarantine 或快照，UI 顯示「已建立還原點」與復原入口；對 fixture 目錄 undo 後檔案數與位元組與操作前一致。
 - [ ] checkpoint 建立失敗時，破壞性操作被取消（fail closed），而不是照常執行。
@@ -234,6 +262,7 @@ DSH 已經有一個直接對應這個問題的機制，但目前是 optional、�
 
 ## 附註
 
-- 事故後使用者已採取：全域 `AGENTS.md` 加入高危操作守則（canonicalize、保護清單、暫存目錄測試）、開啟系統保護、建立外接備份。
-- 願意協助驗證：可提供去識別化的最小重現腳本、PowerShell SafeDelete 參考實作與 Pester 測試、以及各種路徑邊界案例的測試清單。
+- 事故後使用者已採取：全域 `AGENTS.md` 加入高危操作守則（canonicalize、保護清單、暫存目錄測試）、開啟系統保護、建立外接備份。11-18 復盤後再補三條：**取證順序**（停止寫入 → 複製影子到別顆碟 → 才還原 → 驗內容）、**守門測試用替身**、**VSS 影子不是備份**。
+- 願意協助驗證：可提供去識別化的最小重現腳本、PowerShell SafeDelete 參考實作與 Pester 測試、各種路徑邊界案例的測試清單，以及一支零段掃描工具（`scripts/scan-zero-damage.py`，頁級判準＋`suspect` 層＋`--exclude`，無依賴）。
 - 這份 issue 以建設性為前提：DSH 在 full access 下的流暢度是它最有價值的部分之一，這裡要求的是在不可逆的少數操作上保留一個人工確認點與一條復原路徑，而不是降低它。
+- **修訂記錄（2026-11-18）**：初版的三處事實已更正——「完整救回」→ 僅清單與大小、內容零化；「2–3 分鐘」→ 上限 127 秒；根因「`USERPROFILE` 比較失效」→ 磁碟根正則與不修剪的正規化互相抵銷。另新增「收到審查警告後仍以同一輸入驗證」一節與兩條驗收條件。
