@@ -3,7 +3,7 @@
 - 背景：2026-11-16 在 the machine 上，一個 AI agent（DSH）測試自製 `uninstall-pc1.ps1`
   時，`-Dest "C:\"` 沒被正規化擋下，腳本執行 `cmd /c rd /s /q "C:\"`，刪掉
   `C:\work` 整棵樹（數個專案…約 1.74 GB），靠
-  Windows VSS 影子複本取回檔案清單與大小——但 78 個以上檔案的內容是零（VSS 已知缺陷，見 `vss-null-blocks.md`）。完整記錄：`../incident-review-public.md`。
+  Windows VSS 影子複本取回檔案清單與大小——但 78 個以上檔案出現零段（15 個全零；實際零化 8.5 MB）。機制未證實：替身實驗沒有重現（見 `vss-null-blocks.md`）。完整記錄：`../incident-review-public.md`。
 - 本筆記的用途：把那次事故轉成「使用者怎麼設防線」與「agent 自己該怎麼做」的
   可執行守則。配套工具：`../dsh-guard/`（DSH 執行前守門插件）、
   `..\safedelete\`（PowerShell 安全刪除模組）。

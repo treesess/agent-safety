@@ -12,8 +12,9 @@ ran `cmd /c rd /s /q "C:\"`. It deleted ~1.75 GB / 1,372 files before being kill
 
 The files were then restored from a Windows VSS shadow copy taken six hours earlier —
 **and that turned out to be only half a rescue.** A 2026-11-18 review found that 78+
-files came back with the correct size and entirely zeroed content. The shadow copies
-themselves were handing back NULL blocks without a single error. See
+files came back with the correct size and zeroed runs; 15 were entirely zero. The
+snapshot returned zero-filled blocks without a single error. Whether those zeros were
+already in the snapshot or in the live blocks it maps to is **not resolved**. See
 [`docs/vss-null-blocks.md`](docs/vss-null-blocks.md).
 
 Most users do not have even that half-net, so the failure class deserves more than luck.
@@ -38,6 +39,23 @@ Most users do not have even that half-net, so the failure class deserves more th
 >    bypass; the agent wrote the guard 59 seconds later in response — and then validated
 >    that guard by running it against `-Dest "C:\"` itself. The test input and the thing
 >    being protected were the same object.
+
+> ### Late 2026-11-18 update: what we tested, and what we still cannot claim
+>
+> The VSS mechanism is **not confirmed** for this incident. The same evening we ran a
+> decoy experiment on the same machine: a fresh shadow copy, an 8 MB decoy, deletion via
+> `Remove-Item` and via `cmd /c rd /s /q` (the incident's exact delete path), plus a
+> 128 × 8 MB (1 GB) mass delete. On both builds — 26200.8457 and, after the November
+> update, 26200.9974 — the snapshot returned the **original bytes every time; 0 zeroed
+> files**. TRIM, the delete API and mass deletion up to 1 GB are therefore excluded as
+> triggers. The documented VSS NULL-block behaviour remains the best available
+> explanation, not proof.
+>
+> Two number corrections: **78 is a lower bound** (the real total is at least ~112 files;
+> 15 are entirely zero). And **8.5 MB is the zeroed content**; 144.9 MB is the total size
+> of the damaged files (one 134 MB file had only a few 4 KB holes). Also, after a reboot
+> Windows reassigns shadow device numbers (S22/S23 became `ShadowCopy1/2`), so hard-coded
+> `HarddiskVolumeShadowCopyNN` paths do not survive a restart.
 
 
 This repository contains three independent layers of defence and one write-up:

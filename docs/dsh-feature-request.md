@@ -15,7 +15,7 @@
 
 ## English summary (issue opening)
 
-On 2026-11-16, a DSH desktop user had granted the agent full access for a plugin-migration task. While testing a PowerShell uninstall script that the agent had just written, a caller-supplied `-Dest "C:\"` value passed the script's own destination guard: the guard's canonicalizer deliberately leaves a three-character drive root as `C:\`, while the drive-root check was written as `^[A-Za-z]:$`, which only matches the trimmed form `C:`. Two individually correct checks cancelled each other out. The script then ran `cmd /c rd /s /q "C:\"`. It deleted the user's working folder — 1,372 files in 143 directories, about 1.75 GB — within 127 seconds, and stopped when the agent killed the background job. Files were restored from a Windows VSS shadow copy taken roughly six hours earlier, **but that turned out to be size-and-count recovery only**: 78+ files came back with correct sizes and entirely zeroed content, because VSS itself silently returned NULL blocks (a known Windows defect). Most users have neither the safety net nor a way to detect that it lied.
+On 2026-11-16, a DSH desktop user had granted the agent full access for a plugin-migration task. While testing a PowerShell uninstall script that the agent had just written, a caller-supplied `-Dest "C:\"` value passed the script's own destination guard: the guard's canonicalizer deliberately leaves a three-character drive root as `C:\`, while the drive-root check was written as `^[A-Za-z]:$`, which only matches the trimmed form `C:`. Two individually correct checks cancelled each other out. The script then ran `cmd /c rd /s /q "C:\"`. It deleted the user's working folder — 1,372 files in 143 directories, about 1.75 GB — within 127 seconds, and stopped when the agent killed the background job. Files were restored from a Windows VSS shadow copy taken roughly six hours earlier, **but that turned out to be size-and-count recovery only**: 78+ files came back with correct sizes and zeroed runs (15 entirely zero). A 2026-11-18 decoy test — single-file deletes and a 1 GB mass delete, on both the original and the updated build — did **not** reproduce the zeroing. The documented VSS NULL-block behaviour remains the best explanation, not a confirmed cause. Most users have neither the safety net nor a way to detect that it lied.
 
 Every existing layer was bypassed for a different reason. Full access mode skipped approval entirely, which is what full access means — but the user's intent was "let the agent work without babysitting every file edit", not "irreversible mass deletion may proceed unannounced". The shell tool itself saw a benign-looking `pwsh -File uninstall.ps1 -Dest C:\ -Force` invocation, because the destructive verb lived inside the script the model had just authored, not in the tool's command line. The optional Auto review access mode — the one mechanism that checks each tool call against the user's request — was off by default.
 
@@ -29,7 +29,7 @@ This issue does not ask DSH to block deletions, to take responsibility for user 
 
 ## 問題陳述（繁中）
 
-AI agent 在使用者授予 **full access** 的情況下，把一個**未正規化**的路徑參數餵給刪除動詞，實際執行 `cmd /c rd /s /q "C:\"`，刪掉使用者的工作資料夾（1,372 個檔案、143 個目錄、約 **1.75 GB**）。整個過程沒有任何人被詢問、沒有任何還原點被建立、沒有任何審計記錄留下。使用者靠 Windows VSS 影子複本（約 6 小時前的還原點）以 robocopy 取回，**但只救回檔案清單與大小——78 個以上檔案的內容是零，VSS 本身在不報錯的情況下回傳了 NULL 區塊**。
+AI agent 在使用者授予 **full access** 的情況下，把一個**未正規化**的路徑參數餵給刪除動詞，實際執行 `cmd /c rd /s /q "C:\"`，刪掉使用者的工作資料夾（1,372 個檔案、143 個目錄、約 **1.75 GB**）。整個過程沒有任何人被詢問、沒有任何還原點被建立、沒有任何審計記錄留下。使用者靠 Windows VSS 影子複本（約 6 小時前的還原點）以 robocopy 取回，**但只救回檔案清單與大小——78 個以上檔案出現零段（15 個全零），實際零化 8.5 MB**。機制未證實：替身實驗（單檔與 1 GB 大量刪除、兩個 build）沒有重現，見 `vss-null-blocks.md`。
 
 還有一個初稿沒寫、但對 DSH 更關鍵的事實：**這道出事的防護，是為了回應一個 19:00:11 送達的審查警告才寫的**（距致命指令 2 分 5 秒）。agent 收到警告、59 秒內照著補上防護——然後拿警告點名的那個 `-Dest "C:\"` 去驗證它。所以問題不只是「模型會不會寫錯防護」，而是**沒有人要求「守門測試的輸入不能是被保護的目標本身」**。這一條寫進工具描述或系統提示就能生效，成本為零。
 
@@ -45,7 +45,7 @@ AI agent 在使用者授予 **full access** 的情況下，把一個**未正規�
 | Access mode | `danger-full-access`（使用者在該會話主動開啟） |
 | 出事的呼叫鏈 | shell 工具（`pwsh`）→ 子行程 `pwsh -File uninstall.ps1 -Dest "C:\" -Force` → `cmd /c rd /s /q "C:\"` |
 | 未生效的既有機制 | workspace sandbox（full access 下不約束子行程）、approval prompt（full access 略過）、Auto review 外掛（未啟用） |
-| 恢復方式 | Windows VSS 影子複本 + `robocopy /E /COPYALL`；143 目錄 / 1,372 檔案 / 1.744 GB / 0 FAILED。**但這只代表數量與大小**：事後逐檔掃描發現 78 個以上檔案內容為零、15 個全毀（VSS 已知缺陷，見 `vss-null-blocks.md`）。 |
+| 恢復方式 | Windows VSS 影子複本 + `robocopy /E /COPYALL`；143 目錄 / 1,372 檔案 / 1.744 GB / 0 FAILED。**但這只代表數量與大小**：事後逐檔掃描發現 78 個以上檔案有零段、15 個全毀；實際零化 8.5 MB。機制未證實（見 `vss-null-blocks.md`）。 |
 | 破壞視窗 | 指令 19:02:16 送出、19:04:23 中止，**上限 127 秒**；19:05:25 才目視確認損害 |
 | 事前警告 | 19:00:11 收到 subagent 審查的 P0 警告，點名 `-Dest C:\` 可繞過；59 秒後據此補上防護，再以同一個輸入驗證該防護 |
 
@@ -266,3 +266,4 @@ DSH 已經有一個直接對應這個問題的機制，但目前是 optional、�
 - 願意協助驗證：可提供去識別化的最小重現腳本、PowerShell SafeDelete 參考實作與 Pester 測試、各種路徑邊界案例的測試清單，以及一支零段掃描工具（`scripts/scan-zero-damage.py`，頁級判準＋`suspect` 層＋`--exclude`，無依賴）。
 - 這份 issue 以建設性為前提：DSH 在 full access 下的流暢度是它最有價值的部分之一，這裡要求的是在不可逆的少數操作上保留一個人工確認點與一條復原路徑，而不是降低它。
 - **修訂記錄（2026-11-18）**：初版的三處事實已更正——「完整救回」→ 僅清單與大小、內容零化；「2–3 分鐘」→ 上限 127 秒；根因「`USERPROFILE` 比較失效」→ 磁碟根正則與不修剪的正規化互相抵銷。另新增「收到審查警告後仍以同一輸入驗證」一節與兩條驗收條件。
+- **修訂記錄（2026-11-18 晚間）**：新增替身實驗（Remove-Item／cmd rd／1 GB 大量刪除，8457 與 9974 各一輪，0 個全零）；把「VSS 已知缺陷」降級為「最佳解釋、未證實」；78 改註明為下限，零化量更正為 8.5 MB（144.9 MB 是受損檔總大小）。
