@@ -2,6 +2,10 @@
 
 > 用法：把下面 `---` 之後的英文整段貼成該 discussion 的新留言。
 > 內容只寫「發表之後新查到、而且會改變結論」的部分，不重複原貼文。
+>
+> **狀態（2026-11-18 18:37 更新）：留言已貼、正文前向指標也已加。**
+> 留言永久連結：<https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348>
+> 下方「正文前向指標」一節保留作記錄與下次的範本（含佔位符的用法說明）。
 
 ---
 
@@ -36,3 +40,59 @@ So this was not "the agent ignored a warning". The warning arrived, was understo
 - *(new, for anyone reading this as "just enable snapshots")* Verification must check **content**, not counts: page-level zero detection, hashes, `testzip()` for archives. And copy the shadow out to a different disk **before** restoring over the live tree — otherwise the restore itself destroys the evidence you would need to answer "was the original fine?".
 
 I have a full post-mortem (Traditional Chinese) with the millisecond timeline, the recovered source of the two scripts, and the evidence trail, plus a small scanner that detects zeroed content by page alignment. Happy to share either.
+
+---
+
+# 正文前向指標（建議加在討論正文最頂端）
+
+**為什麼要有這個**：留言保留歷史（符合「已發佈的文字不改」的原則），但新讀者會停在正文的舊結論上。
+兩者的交集是：**正文一字不改，只在最頂端加一行指向留言。** 這是勘誤表的標準做法——歷史留著，
+誤導被擋住。
+
+## 英文版（貼在正文第一行）
+
+> **Update 2026-11-18 — correction in the comments.** The claim below that everything was
+> "recovered … verified byte-for-byte" turned out to be size-and-count recovery only:
+> 78+ files came back with exact original sizes and entirely zeroed content (a known Windows
+> VSS defect). The timeline and the root cause below are also wrong in detail.
+> Full follow-up: https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348
+
+### `_<貼上這則留言的永久連結>_` 是什麼意思
+
+那是**佔位符**，不是要照抄的文字：
+
+- `_…_` 是 Markdown 的斜體語法，用來讓它在畫面上看起來是「待填」的示意字。
+- `<…>` 是佔位慣例，表示「這裡要換成真的東西」。
+- **整段 `_<貼上這則留言的永久連結>_` 要換成一個網址。** 連底線和角括號一起刪掉。
+
+「留言的永久連結」＝會直接跳到那則留言的 URL。**這次實際的連結是：**
+
+```
+https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348
+```
+
+最後那串 `#discussioncomment-19706348` 就是定位到單一留言的錨點。
+
+**怎麼拿**（下次用）：在留言右上角按 `···` → `Copy link`；或直接點留言旁的發佈時間，網址列會變成帶錨點的形式，複製起來。
+
+**實際貼在正文的樣子：**
+
+> Full follow-up: https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348
+
+包成連結也可以：
+
+> Full follow-up: [the correction comment](https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348)
+
+**如果一時拿不到連結**，就直接寫 `Full follow-up: see the correction comment below.` 也可以——讀者往下滑一小段就找得到。
+
+## 繁中版（若正文有繁中摘要，也放同一位置）
+
+> **2026-11-18 更正（詳見下方留言）**：本文「完整救回、與影子逐位元組一致」的結論已被推翻——
+> 實際只救回檔案大小，78 個以上檔案內容為零（Windows VSS 已知缺陷）；下方時間線與根因也已修正。
+> 完整更正：<https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348>
+
+## 不要做的事
+
+**不要回頭把正文那句改成對的。** 那會讓底下的回覆失去上下文，也毀掉「當時說了什麼」這個事實。
+更正用追加的，正文只加指標。
+

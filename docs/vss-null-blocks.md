@@ -39,7 +39,19 @@ VSS 的影子複本是**差分**的：某個區塊自快照之後**沒有被改�
 
 ## 外部來源
 
-1. **Microsoft Q&A：Shadow Copy snapshot file contents silently corrupted（2015）**
+1. **Microsoft 官方支援文章 KB2748349（2013）— 狀態：已確認的產品問題**
+   <https://support.microsoft.com/help/2748349>
+   - 症狀：用 VSS 建立快照、再從快照讀檔時，快照裡的檔案是損壞的；而且**只有在還原時才會發現**
+   - 原因（原文）：「some regions in the snapshot are not protected when the original volume is changed.
+     When the file is read from the snapshot, the file data is not consistent. Therefore, the file data
+     becomes corrupted.」
+   - 狀態欄：「**Microsoft has confirmed that this is a problem in the Microsoft products** that are
+     listed in the 'Applies to' section.」
+   - 修正：`volsnap.sys` 更新，已併入 Windows 7 SP1 / Server 2008 R2 SP1
+   - **注意**：這是「讀快照會拿到不一致資料」這個**缺陷類別**的官方確認，觸發條件寫的是特定磁碟區大小／擴充模式，
+     不是我們看到的 NULL 區塊個案。引用時不要說成「微軟承認了 NULL 區塊這個 bug」。
+
+2. **Microsoft Q&A：Shadow Copy snapshot file contents silently corrupted（2015）**
    <https://learn.microsoft.com/en-au/answers/questions/2672731/shadow-copy-snapshot-file-contents-silently-corrup>
    - 取用方式與本次事故相同：`psexec -s` 提權 → `vssadmin list shadows` → `mklink /d` 到
      `\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1` → `robocopy /E`
@@ -81,8 +93,9 @@ python -c "import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).testzip())" "<
 
 ## 還沒被證明的事
 
-這份文件只主張「**存在這樣一個已知缺陷，症狀與 261116 完全吻合**」，不主張 261116 已被證明由它造成：
+這份文件只主張「**存在這樣一個已被重現、且微軟官方確認過相關缺陷類別的資料損壞行為，症狀與 261116 完全吻合**」，不主張 261116 已被證明由它造成：
 
+- KB2748349 描述的觸發條件（磁碟區大小為 8 GB 倍數後又擴充）與 261116 不符，它證明的是「這類缺陷存在且被官方確認」，不是「就是這一個」；
 - 外部案例都沒有「先刪除 1.75 GB、再大量寫回」這個脈絡；
 - 缺陷的觸發條件（叢集狀態、diff area 內部結構）沒有公開技術說明；
 - 要直接證明得建新快照、對同一批檔案重複讀取比對，而原檔已不在。
