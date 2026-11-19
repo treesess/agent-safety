@@ -37,6 +37,6 @@ The lesson I would keep is narrower than "VSS is broken": **a shadow copy is a r
 > timeline, the root cause and the VSS claim; a second follow-up reports the decoy
 > experiment: the zeroing did **not** reproduce, so the mechanism remains unconfirmed.
 > First: <https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19706348>
-> Second: `_<貼上第二則留言的永久連結>_`
+> Second: <https://github.com/deepseek-ai/deepseek-harness/discussions/13528#discussioncomment-19711922>
 
 > 註：`_<…>_` 是佔位符，貼上時整段換成網址。

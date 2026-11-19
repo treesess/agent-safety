@@ -12,12 +12,12 @@
 
 > ---
 >
-> **2026-11-18 追記：本文已發佈於 GitHub（discussion #13528）。以下內文是發佈當時的版本，不要修改它——其中兩處已被推翻：**
+> **2026-11-18 追記：本文已發佈於 GitHub（discussion #13528）。以下內文是發佈當時的版本，不要修改它——其中幾處已被推翻：**
 >
-> 1. 「Everything was recovered … verified byte-for-byte」**不成立**。影子複本回傳 NULL 區塊，78 個以上檔案大小正確但內容全零（見 `vss-null-blocks.md`）。
+> 1. 「Everything was recovered … verified byte-for-byte」**不成立**。影子複本回傳 NULL 區塊，78 個以上檔案有零段、15 個全零（實際零化 8.5 MB；機制未證實，見 `vss-null-blocks.md`）。
 > 2. 根因寫成「`GetFullPath` 保留尾端分隔符，導致使用者目錄比較永遠不成立」**不準確**。那道比較其實有效；真正失效的是磁碟根檢查 `^[A-Za-z]:$` 與「不修剪 3 字元磁碟根」的正規化互相抵銷。
 >
-> 追加更正請貼 `dsh-discussion-update-20261118.md` 的內容。
+> 追加更正見 `dsh-discussion-update-20261118.md`（第一則）與 `dsh-discussion-update2-20261118.md`（第二則，替身實驗）；live post 頂端已加兩則留言的指標。
 
 ---
 
