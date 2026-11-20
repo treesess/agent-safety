@@ -56,6 +56,13 @@ Most users do not have even that half-net, so the failure class deserves more th
 > of the damaged files (one 134 MB file had only a few 4 KB holes). Also, after a reboot
 > Windows reassigns shadow device numbers (S22/S23 became `ShadowCopy1/2`), so hard-coded
 > `HarddiskVolumeShadowCopyNN` paths do not survive a restart.
+>
+> **Root cause, refined (2026-11-20).** The agent's own plan at 19:01:10 included a second
+> drive-root check — `GetPathRoot()` equality — next to the regex. Only the regex made it
+> into the code. And the leaf-name check that would have caught `C:\` was disabled by the
+> test's own `-Force` flag, added to get past the "DSH is running" check. The full method
+> (and how a sequential read of the reasoning found this) is in
+> [`docs/incident-review-public.md`](docs/incident-review-public.md).
 
 
 This repository contains three independent layers of defence and one write-up:
